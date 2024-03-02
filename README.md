@@ -25,6 +25,7 @@ Typecheck.js is a JavaScript library that lets you type check function parameter
     - [Arrow functions](#arrow-functions)
     - [Async and generator functions](#async-and-generator-functions)
 - [Scope of user-defined types](#scope-of-user-defined-types)
+- [The `typechecked.instanceof` function](#the-typecheckedinstanceof-function)
 
 ## Setup
 ### Browser-based JavaScript
@@ -35,6 +36,12 @@ In browser-based JavaScript, the easiest way to use Typecheck.js is to include i
 ```
 
 This allows you to use Typecheck.js in any JavaScript files on that web page.
+
+If you're using modules, it's also possible to import Typecheck.js using the `import` keyword:
+
+```javascript
+import typechecked from "https://gustavlindberg99.github.io/Typecheck.js/typecheck.js";
+```
 
 ### Node.js
 To use Typecheck.js in Node.js, download [typecheck.js](https://gustavlindberg99.github.io/Typecheck.js/typecheck.js) into your project folder, then include it as follows:
@@ -144,7 +151,7 @@ square(4);              //OK
 square(new Number(4));  //TypeError
 ```
 
-Other built-in types (such as `RegExp`, `Date`, `XMLHttpRequest`, etc) work as usual. Built-in container types (`Array`, `Set`, `Map`) can also be used as usual, but also have the possibility to be used as generics, see the Generics section below.
+Other built-in types (such as `RegExp`, `Date`, `XMLHttpRequest`, etc) simply check if it's an instance of that class using `instanceof`. Built-in container types (`Array`, `Set`, `Map`) can also be used as usual, but also have the possibility to be used as generics, see the Generics section below.
 
 Since the typechecking uses `instanceof`, instances of a derived class are also considered to be instances of a base class. For example, an `HTMLBodyElement` object is considered to also be an `HTMLElement` object, and if you have `class Base{}` and `class Derived extends Base{}`, a `Derived` object is also considered to be a `Base` object. Also, this means that everything except null or undefined is considered to be an instance of `Object` (including primitives and wrapper objects).
 
@@ -353,3 +360,21 @@ function outer(){
                                 //anywhere else.
 }
 ```
+
+## The `typechecked.instanceof` function
+If you want to typecheck using Typecheck.js syntax elsewhere than in function paremeters and return types, you can use the `typechecked.instanceof` function, which has the following signature:
+
+```javascript
+function typechecked.instanceof(
+    obj /*: var */,
+    type /*: String | class | null | undefined */
+) /*: Boolean */
+```
+
+This function has the following behavior depending on the type of `type`:
+- If `type` is a string, parses it as a Typecheck.js type, then returns true if `obj` is an instance of that type and false otherwise. Throws an error if the parsing failed.
+- If `type` is null, returns true if `obj === null` and false otherwise.
+- If `type` is undefined, returns true if `obj === undefined` and false otherwise.
+- If `type` is `Number`, `String`, `Boolean`, `Symbol` or `BigInt`, returns true if `typeof obj` is `number`, `string`, `boolean`, `symbol` or `bigint` respecitvely, and false otherwise.
+- If `type` is `Object`, returns true if `obj !== null` and `obj !== undefined`, and false otherwise.
+- If `type` is any other class, returns the result of `obj instanceof type`.

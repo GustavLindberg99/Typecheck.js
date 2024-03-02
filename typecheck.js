@@ -5,7 +5,7 @@
 
 "use strict";
 
-(function(){
+const typechecked = (function(){
 let savedClasses = {};
 
 //Define these to be able to check if a function is an async function or a generator function
@@ -801,13 +801,14 @@ typechecked.isinstance = function(obj /*: var */, type /*: String | class | null
     }
 };
 
-//Browser-based JavaScript (no risk for false positives because in Node.js global variables defined in other files aren't visible here)
-if(typeof(window) === "object"){
-    window.typechecked = Object.freeze(typechecked);
+return Object.freeze(typechecked);
+})();
+
+//Export typechecked in Node.js (no risk for false positives because in Node.js global variables defined in other files aren't visible here)
+if(typeof(window) === "undefined"){
+    module.exports = typechecked;
 }
 
-//Node.js (the else is important here in case it's browser-based JavaScript but has a user-defined global variable called module)
-else if(typeof(module) === "object"){
-    module.exports = Object.freeze(typechecked);
-}
-})();
+//Export typechecked in ES6 modules (the first statement makes sure we're in a module, see https://stackoverflow.com/a/72314371/4284627)
+//Unfortunately there doesn't seem to be a nicer way of doing this
+if(false) typeof await /2//2; export default typechecked;
