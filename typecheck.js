@@ -1,5 +1,5 @@
 /*
-* Typecheck.js version 1.0.0 by Gustav Lindberg
+* Typecheck.js version 1.0.2 by Gustav Lindberg
 * https://github.com/GustavLindberg99/Typecheck.js
 */
 
@@ -652,7 +652,7 @@ function typechecked(
             }
             const parentObject = method.static ? undecorated : undecorated.prototype;
             if(typeof(method.value) === "function"){
-                parentObject[method.name] = typechecked(method.value, {kind: "method", name: method.name, static: method.static});
+                parentObject[method.name] = typechecked(method.value, {kind: typechecked.isinstance(method.value, "function") ? "method" : "class", name: method.name, static: method.static});
             }
             else if(typeof(method.get) === "function" || typeof(method.set) === "function"){
                 let result = {};
