@@ -32,7 +32,7 @@ Typecheck.js is a JavaScript library that lets you type check function parameter
 In browser-based JavaScript, the easiest way to use Typecheck.js is to include it in your HTML file:
 
 ```html
-<script type="text/javascript" src="https://gustavlindberg99.github.io/Typecheck.js/typecheck.js"></script>
+<script type="text/javascript" src="https://gustavlindberg99.github.io/Typecheck.js/typecheck.min.js"></script>
 ```
 
 This allows you to use Typecheck.js in any JavaScript files on that web page.
@@ -40,7 +40,7 @@ This allows you to use Typecheck.js in any JavaScript files on that web page.
 If you're using modules, it's also possible to import Typecheck.js using the `import` keyword:
 
 ```javascript
-import typechecked from "https://gustavlindberg99.github.io/Typecheck.js/typecheck.js";
+import typechecked from "https://gustavlindberg99.github.io/Typecheck.js/typecheck.min.js";
 ```
 
 ### Node.js

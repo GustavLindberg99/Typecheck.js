@@ -1,0 +1,10 @@
+#!/bin/sh
+if which uglifyjs > /dev/null; then
+    uglifyjs --mangle --comments '/export default typechecked/' typecheck.js -o typecheck.min.js
+    git add typecheck.min.js
+else
+    echo "Cannot minify file: uglifyjs is not installed. To install it, run the following commands:"
+    echo "sudo apt install npm"
+    echo "sudo npm install -g uglify-js"
+    exit 1
+fi

@@ -1,5 +1,5 @@
 /*
-* Typecheck.js version 1.0.3 by Gustav Lindberg
+* Typecheck.js version 1.0.4 by Gustav Lindberg
 * https://github.com/GustavLindberg99/Typecheck.js
 */
 
@@ -650,13 +650,13 @@ function typechecked(
                 continue;
             }
             if(method.writable === false){
-                if(typeof(method.value) === "function" || typeof(method.get) === "function" || typeof(method.set) === "function"){
+                if(method.value instanceof Function || method.get instanceof Function || method.set instanceof Function){
                     console.warn(name + "." + method.name + " is not writable and can't be typechecked.");
                 }
                 continue;
             }
             const parentObject = method.static ? undecorated : undecorated.prototype;
-            if(typeof(method.value) === "function"){
+            if(method.value instanceof Function){
                 parentObject[method.name] = typechecked(
                     method.value,
                     {
@@ -665,12 +665,12 @@ function typechecked(
                     }
                 );
             }
-            else if(typeof(method.get) === "function" || typeof(method.set) === "function"){
+            else if(method.get instanceof Function || method.set instanceof Function){
                 let result = {};
-                if(typeof(method.get) === "function"){
+                if(method.get instanceof Function){
                     result.get = typechecked(method.get, {kind: "getter", name: method.name, static: method.static});
                 }
-                if(typeof(method.set) === "function"){
+                if(method.set instanceof Function){
                     result.set = typechecked(method.set, {kind: "setter", name: method.name, static: method.static});
                 }
                 Object.defineProperty(parentObject, method.name, result);
@@ -833,4 +833,4 @@ if(typeof(window) === "undefined"){
 
 //Export typechecked in ES6 modules (the first statement makes sure we're in a module, see https://stackoverflow.com/a/72314371/4284627)
 //Unfortunately there doesn't seem to be a nicer way of doing this
-if(false) typeof await /2//2; export default typechecked;
+if(0)typeof await/2//2;export default typechecked;
