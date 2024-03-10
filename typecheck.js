@@ -1,5 +1,5 @@
 /*
-* Typecheck.js version 1.0.2 by Gustav Lindberg
+* Typecheck.js version 1.0.3 by Gustav Lindberg
 * https://github.com/GustavLindberg99/Typecheck.js
 */
 
@@ -90,7 +90,7 @@ class Type{
                 }
                 splitUnionTypeStrings[splitUnionTypeStrings.length - 1] += this.name[i];
             }
-            else if(/[a-z_$]/i.test(this.name[i])){
+            else if(/[a-z_$\.]/i.test(this.name[i])){
                 if(spaceAfterTypeName){
                     throw SyntaxError(`Unexpected token '${nextToken}' in type declaration '${this}'`);
                 }
@@ -187,7 +187,11 @@ class Type{
         case "class":
             return obj instanceof Function && obj.hasOwnProperty("prototype") && !(obj instanceof GeneratorFunction || obj instanceof AsyncGeneratorFunction);
         default:
-            const type = (globalThis[this.rawType()] ?? savedClasses[this.rawType()]);
+            const rawType = this.rawType().split(".");
+            let type = (globalThis[rawType[0]] ?? savedClasses[rawType[0]]);
+            for(let subtype of rawType.slice(1)){
+                type = type[subtype];
+            }
             if(type === undefined){
                 throw ReferenceError(`'${this.rawType()}' in type declaration is not defined`);
             }
@@ -616,11 +620,12 @@ function typechecked(
     }
 
     const readableName = (name !== "") ? `'${name}'` : "<anonymous>";
+    const baseName = name.split(".").at(-1);
 
     switch(kind){
     case "class":
         //Same class names so that this is useable with modules
-        if(name !== ""){
+        if(name !== "" && !name.includes(".")){
             if(name in savedClasses || name in globalThis){
                 throw ReferenceError(`Redefinition of class ${readableName} (typecheck.js doesn't support multiple typechecked classes with the same name, not even in different modules)`);
             }
@@ -652,7 +657,13 @@ function typechecked(
             }
             const parentObject = method.static ? undecorated : undecorated.prototype;
             if(typeof(method.value) === "function"){
-                parentObject[method.name] = typechecked(method.value, {kind: typechecked.isinstance(method.value, "function") ? "method" : "class", name: method.name, static: method.static});
+                parentObject[method.name] = typechecked(
+                    method.value,
+                    {
+                        kind: typechecked.isinstance(method.value, "function") ? "method" : "class",
+                        name: name + "." + method.name
+                    }
+                );
             }
             else if(typeof(method.get) === "function" || typeof(method.set) === "function"){
                 let result = {};
@@ -703,12 +714,12 @@ function typechecked(
                 //Return the class with a typechecked constructor
                 //The {[name]: ...}[name] syntax is so that the class keeps its name, see https://stackoverflow.com/a/48813707/4284627
                 //The problem with using Object.defineProperty as we do for functions is that then the debugger will log instances as paramTypes.paramTypes{...} instead of ClassName{...}
-                return {[name]: class extends undecorated{
+                return {[baseName]: class extends undecorated{
                     constructor(...args){
                         constructor.checkArgs(args);
                         super(...args);
                     }
-                }}[name];
+                }}[baseName];
             }
         }
         return undecorated;
@@ -717,6 +728,10 @@ function typechecked(
     case "getter":
     case "setter":
         const func = new TypedFunction(readableName, undecorated.toString());
+
+        if(kind === "setter" && func.returnType !== null){
+            throw SyntaxError("Setters can't have return types");
+        }
 
         //Return the typechecked function
         let result;
@@ -752,11 +767,18 @@ function typechecked(
             result = function(...args){
                 func.checkArgs(args);
                 const returnValue = func.isArrowFunction ? undecorated(...args) : undecorated.call(this, ...args);
-                func.checkReturnValue(returnValue);
+                if(kind === "setter"){
+                    if(returnValue !== undefined){
+                        throw TypeError("Setters should not return anything");
+                    }
+                }
+                else{
+                    func.checkReturnValue(returnValue);
+                }
                 return returnValue;
             };
         }
-        Object.defineProperty(result, "name", {value: name, writable: false});
+        Object.defineProperty(result, "name", {value: baseName, writable: false});
         return result;
     default:
         throw TypeError("typechecked is only allowed on classes, functions, methods, getters or setters, got " + context.kind);
