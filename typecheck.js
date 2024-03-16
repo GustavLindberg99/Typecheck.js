@@ -1,5 +1,5 @@
 /*
-* Typecheck.js version 1.0.4 by Gustav Lindberg
+* Typecheck.js version 1.0.5 by Gustav Lindberg
 * https://github.com/GustavLindberg99/Typecheck.js
 */
 
@@ -17,7 +17,7 @@ const AsyncGeneratorFunction = (async function*(){}).constructor;
 
 class Type{
     name /*: String */;
-    splitUnionTypes /*: Array<Type> */ = [""];
+    splitUnionTypes /*: Array<Type> */ = [];
     #genericTypes /*: Array<Type> */;
 
     constructor(name /*: String */){
@@ -117,6 +117,9 @@ class Type{
             this.splitUnionTypes = [this];
 
             genericTypeStrings = genericTypeStrings.map(it => it.trim()).filter(it => it !== "");
+            if(genericTypeStrings.some(it => it === "void")){
+                throw SyntaxError("void can't be used in generics")
+            }
             this.#genericTypes = genericTypeStrings.map(it => new Type(it));
 
             if(this.rawType() === "Array" || this.rawType() === "Set"){
@@ -138,6 +141,12 @@ class Type{
             }
         }
         else{
+            if(splitUnionTypeStrings.some(it => it === "void")){
+                throw SyntaxError("void can't be used in union types");
+            }
+            else if(splitUnionTypeStrings.some(it => it === "var")){
+                throw SyntaxError("var can't be used in union types");
+            }
             this.splitUnionTypes = splitUnionTypeStrings.map(it => new Type(it));
             this.#genericTypes = [];
         }
@@ -174,7 +183,7 @@ class Type{
         case "null":
             return obj === null;
         case "undefined":
-        case "void":    //TODO: maybe void shouldn't be an alias for undefined, see https://stackoverflow.com/q/58885485/4284627
+        case "void":
             return obj === undefined;
         case "function":
             return obj instanceof Function && !obj.toString().startsWith("class");
@@ -392,6 +401,9 @@ class TypedFunction{
                 const parameter = atEndOfDestructuredParams ? currentParent : new Parameter(parameterName, currentParent);
                 parameter.isRestParameter ||= isRestParameter;
                 if(typeMatch !== null){
+                    if(typeMatch[1].trim() === "void"){
+                        throw SyntaxError("void can only be used as a return type");
+                    }
                     parameter.type = new Type(typeMatch[1]);
                 }
                 if(atEndOfDestructuredParams){

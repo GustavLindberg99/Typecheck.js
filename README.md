@@ -32,7 +32,7 @@ Typecheck.js is a JavaScript library that lets you type check function parameter
 In browser-based JavaScript, the easiest way to use Typecheck.js is to include it in your HTML file:
 
 ```html
-<script type="text/javascript" src="https://gustavlindberg99.github.io/Typecheck.js/typecheck.min.js"></script>
+<script type="text/javascript" src="https://gustavlindberg99.github.io/Typecheck.js/min/typecheck-v1.min.js"></script>
 ```
 
 This allows you to use Typecheck.js in any JavaScript files on that web page.
@@ -40,7 +40,7 @@ This allows you to use Typecheck.js in any JavaScript files on that web page.
 If you're using modules, it's also possible to import Typecheck.js using the `import` keyword:
 
 ```javascript
-import typechecked from "https://gustavlindberg99.github.io/Typecheck.js/typecheck.min.js";
+import typechecked from "https://gustavlindberg99.github.io/Typecheck.js/min/typecheck-v1.min.js";
 ```
 
 ### Node.js
@@ -158,7 +158,7 @@ Since the typechecking uses `instanceof`, instances of a derived class are also 
 ### Null, undefined and void types
 The special type `null` can be used to check that a variable is `null`. This is mostly useful in union types, so to check that a varaible is either an instance of `SomeClass` or is null, you can use `SomeClass | null`. Similarly, `undefined` checks that a variable is undefined.
 
-`void` is an alias for `undefined`, and is intended to be used to indicate that a function returns nothing. Since in JavaScript functions that return nothing return undefined, `void` and `undefined` are functionally identical, but are intended to have different meanings: `void` is indended to be used as the return type of functions that return nothing, and `undefined` is intended to be used for other uses of undefined.
+`void` also checks that the return value of a function is undefined, but unlike `undefined`, it can only be used as a return type, and can't be used in union types or generics. It's intended to be used to indicate that a function returns nothing. Since in JavaScript functions that return nothing return undefined, a return type of void `void` is functionally identical to a plain return type of `undefined`, but they are intended to have different meanings: `void` is indended to be used as the return type of functions that return nothing, and `undefined` is intended to be used for other uses of undefined.
 
 ### Function types
 Since `Function` is a member of `globalThis`, it can be used to type check for functions. However, this is rarely useful since in JavaScript a "function" can mean many different things. For example, classes and arrow functions are both `Function` objects, but are almost never used in the same way. For this reason, typecheck.js has several special function types:
@@ -172,7 +172,7 @@ Since `Function` is a member of `globalThis`, it can be used to type check for f
 Note that `Function` is equivalent to `class | function`. However, `class | function` is more readable since it more explicitly states that both classes and functions are acceptable.
 
 ### The `var` type
-The special type `var` does no type checking at all, it's equivalent to not having any type declaration. Since `Object` checks for anything that's not null or undefined (see above), `var` is functionally equivalent to `Object | null | undefined`. However, `var` has better performance.
+The special type `var` does no type checking at all, it's equivalent to not having any type declaration. It can't be used in union types (since otherwise a union type including `var` would be equivalent to `var` itself). Since `Object` checks for anything that's not null or undefined (see above), `var` is functionally equivalent to `Object | null | undefined`. However, `var` has better performance.
 
 There are a few reasons to use `var` over no type declaration at all:
 - Readability. If you see a function with no type declaration, it can be hard to tell if the type declaration was left out for some other reason (for example by mistake or to make the function declaration shorter). If you use `/*: var */`, it's immediately clear that the variable can have any type.
