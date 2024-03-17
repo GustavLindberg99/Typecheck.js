@@ -25,6 +25,10 @@ Typecheck.js is a JavaScript library that lets you type check function parameter
     - [Arrow functions](#arrow-functions)
     - [Async and generator functions](#async-and-generator-functions)
 - [Scope of user-defined types](#scope-of-user-defined-types)
+    - [Typechecked vs non-typechecked classes](#typechecked-vs-non-typechecked-classes)
+    - [The `typechecked.add` function](#the-typecheckedadd-function)
+    - [Local classes](#local-classes)
+    - [Nested classes](#nested-classes)
 - [The `typechecked.instanceof` function](#the-typecheckedinstanceof-function)
 
 ## Setup
@@ -137,7 +141,7 @@ This only typechecks public methods, it doesn't typecheck its private methods. T
 In typecheck.js, you can use classes in type declarations as well as a few special types. The special types are all reserved keywords on purpose so that they can't conflict with user-defined classes.
 
 ### Classes
-Any class can be used in a type declaration, as long as it's either a member of `globalThis` or is itself `typechecked`. This works for all built-in types and most user-defined types. In non-module scripts, user-defined classes in the global namespace are always members of `globalThis`, so they can be used in type declarations without any restrictions. In modules, however, user-defined classes may need to be `typechecked` for it to work, see the Modules section below.
+Any class can be used in a type declaration, as long as it's either a member of `globalThis`, is itself `typechecked`, or has been added through `typechecked.add`. This works for all built-in types and most user-defined types. In non-module scripts, user-defined classes in the global namespace are always members of `globalThis`, so they can be used in type declarations without any restrictions. In modules, however, user-defined classes may need to be `typechecked` for it to work, see the Modules section below.
 
 This works for built-in types as well, however, the primitive classes `Number`, `String`, `Boolean`, `Symbol` and `BigInt` check that the variable is of the corresponding primitive type and *not* an object. There is no way to type check for wrapper objects since they're not very useful. For example:
 
@@ -277,7 +281,8 @@ generator.next();    //TypeError: expected yield value to be String, got Number
 The parameter types of async and generator functions are checked just like any other functions, immediately when the function gets called.
 
 ## Scope of user-defined types
-As stated above, you can type check for any class name that's either a member of `globalThis` or that's typechecked, including user-defined classes.
+### Typechecked vs non-typechecked classes
+As stated above, you can type check for any class name that's either a member of `globalThis`, that's typechecked, or that has been added through typechecked.add, including user-defined classes.
 
 In non-module scripts, any class defined in the global namespace works, since it's a member of `globalThis`:
 
@@ -338,6 +343,25 @@ MyClass = typechecked(MyClass);    //ReferenceError: Redefinition of MyClass
 
 This is because `typechecked` doesn't know which module it's being called from, so it doesn't know which one to choose.
 
+### The `typechecked.add` function
+If you want to use a class in type declarations that's not a member of `globalThis` but you don't want to make it typechecked (for example because it's a class from a third-party library), you can make it known to typechecked by using `typechecked.add`. `typechecked.add` takes any number of classes as parameters, and after it has been called, you can use it in type declarations just like any other class.
+
+Example:
+
+```javascript
+import {ThirdPartyClass1, ThirdPartyClass2} from "http://example.com/third-party-library.js";
+
+function f(x /*: ThirdPartyClass1 */, y /*: ThirdPartyClass2 */){}
+f = typechecked(f);
+
+f(new ThirdPartyClass1(), new ThirdPartyClass2());    //Error: typecheck.js doesn't know about these classes
+
+typechecked.add(ThirdPartyClass1, ThirdPartyClass2);
+
+f(new ThirdPartyClass1(), new ThirdPartyClass2());    //OK, they have been added with typechecked.add
+```
+
+### Local classes
 Similarly, local classes can't either be used in type declarations since they're not either members of `globalThis`, unless they're typechecked (regardless of whether the script is a module or not). However, you need to be careful with anonymous classes:
 
 ```javascript
@@ -359,6 +383,21 @@ function outer(){
                                 //careful not to have classes called LocalClass3
                                 //anywhere else.
 }
+```
+
+### Nested classes
+If a class is a member of another class, it's possible to typecheck for the inner class using the syntax `OuterClass.InnerClass`, as long as the outer class fulfills the requirements above. Example:
+
+```javascript
+class Outer{
+    static Inner = class{}
+}
+Outer = typechecked(Outer);
+
+function f(x /*: Outer.Inner */){}
+f = typechecked(f);
+
+f(new Outer.Inner());
 ```
 
 ## The `typechecked.instanceof` function

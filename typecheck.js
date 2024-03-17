@@ -1,5 +1,5 @@
 /*
-* Typecheck.js version 1.0.5 by Gustav Lindberg
+* Typecheck.js version 1.1.0 by Gustav Lindberg
 * https://github.com/GustavLindberg99/Typecheck.js
 */
 
@@ -834,6 +834,29 @@ typechecked.isinstance = function(obj /*: var */, type /*: String | class | null
         throw TypeError(`Expected parameter 'type' of function 'typechecked.isinstance' to be of type 'String | class | null | undefined', got '${typeName(type)}'`);
     }
 };
+
+typechecked.add = typechecked(function(...classes /*: Array<class> */) /*: void */ {
+    for(let cls of classes){
+        if(cls.name === ""){
+            throw ReferenceError("Cannot call typechecked.add on anonymous classes.");
+        }
+
+        const name = cls.name;
+        if(name in savedClasses || name in globalThis){
+            if(savedClasses[name] === cls || cls.prototype instanceof savedClasses[name]){
+                throw ReferenceError(`Cannot call typechecked.add on class '${name}': class is already known by typechecked. You don't need to call typechecked.add on classes that are themselves typechecked.`);
+            }
+            else if(globalThis[name] === cls){
+                throw ReferenceError(`Cannot call typechecked.add on class '${name}': class is already known by typechecked. You don't need to call typechecked.add on classes that are members of globalThis.`);
+            }
+            else{
+                throw ReferenceError(`Redefinition of class '${name}' (typecheck.js doesn't support multiple typechecked classes with the same name, not even in different modules)`);
+            }
+        }
+
+        savedClasses[name] = cls;
+    }
+}, {name: "typechecked.add"});
 
 return Object.freeze(typechecked);
 })();
