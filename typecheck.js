@@ -843,7 +843,11 @@ typechecked.add = typechecked(function(...classes /*: Array<class> */) /*: void 
 
         const name = cls.name;
         if(name in savedClasses || name in globalThis){
-            if(savedClasses[name] === cls || cls.prototype instanceof savedClasses[name]){
+            if(savedClasses[name] === cls){
+                //Don't do anything, calling typechecked.add twice should be allowed so that it can be called after import in each file
+                return;
+            }
+            else if(cls.prototype instanceof savedClasses[name]){
                 throw ReferenceError(`Cannot call typechecked.add on class '${name}': class is already known by typechecked. You don't need to call typechecked.add on classes that are themselves typechecked.`);
             }
             else if(globalThis[name] === cls){
