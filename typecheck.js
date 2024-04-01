@@ -1,5 +1,5 @@
 /*
-* Typecheck.js version 1.1.0 by Gustav Lindberg
+* Typecheck.js version 1.1.2 by Gustav Lindberg
 * https://github.com/GustavLindberg99/Typecheck.js
 */
 
@@ -511,7 +511,7 @@ class TypedFunction{
     checkArgs(args /*: Array */, parameters /*: Array<Parameter> */ = this.parameters, name /*: String */ = this.name) /*: void */ {
         //Check the number of parameters
         const minNumberOfParams = parameters.filter(it => !it.isOptional && !it.isRestParameter).length;
-        const maxNumberOfParams = parameters.at(-1)?.isRestParameter ? Infinity : parameters.length;
+        const maxNumberOfParams = this.isArrowFunction || parameters.at(-1)?.isRestParameter ? Infinity : parameters.length;
         if(args.length < minNumberOfParams){
             throw TypeError(`${args.length} arguments passed to ${name}, but at least ${minNumberOfParams} were expected.`);
         }

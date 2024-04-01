@@ -70,7 +70,7 @@ const f = typechecked(function f(){});
 ```
 
 ### Number of parameters
-Typecheck.js does two things: checks the number of parameters of a function, and checks that the parameters and return type are of the correct type.
+Typecheck.js does two things: checks that the number of parameters of a function match the number of parameters specified in its declaration, and checks that the parameters and return type are of the correct type.
 
 To check the number of parameters, you don't need to do anything special other than applying the `typechecked` decorator:
 
@@ -87,6 +87,24 @@ oneArg = typechecked(oneArg);
 oneArg();       //TypeError: too few arguments
 oneArg(1);      //OK
 oneArg(1, 2);   //TypeError: too many arguments
+```
+
+Arrow functions only check if too few parameters are specified, not if too many parameters are specified:
+
+```javascript
+const arrowFunction = typechecked((a) => {});
+
+arrowFunction();            //TypeError: too few arguments
+arrowFunction(1);           //OK
+arrowFunction(1, 2);        //OK
+arrowFunction(1, 2, 3);     //OK
+arrowFunction(1, 2, 3, 4);  //OK
+```
+
+This is because arrow functions are often used as callbacks, and sometimes the caller specifies parameters that aren't needed. For example, the callback to the `Array.map` method can take up to three parameters, but often only one is needed, so without this feature, the following code wouldn't be possible:
+
+```javascript
+[1, 2, 3].map(typechecked(x => x + 1));
 ```
 
 ### Type declarations
