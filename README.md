@@ -13,7 +13,7 @@ Typecheck.js is a JavaScript library that lets you type check function parameter
     - [Type checking classes](#type-checking-classes)
 - [List of types](#list-of-types)
     - [Classes](#classes)
-    - [Null, undefined and void types](#null-undefined-and-void-types)
+    - [Null, undefined, void and NaN types](#null-undefined-and-void-types)
     - [Function types](#function-types)
     - [The `var` type](#the-var-type)
     - [Union types](#union-types)
@@ -177,8 +177,10 @@ Other built-in types (such as `RegExp`, `Date`, `XMLHttpRequest`, etc) simply ch
 
 Since the typechecking uses `instanceof`, instances of a derived class are also considered to be instances of a base class. For example, an `HTMLBodyElement` object is considered to also be an `HTMLElement` object, and if you have `class Base{}` and `class Derived extends Base{}`, a `Derived` object is also considered to be a `Base` object. Also, this means that everything except null or undefined is considered to be an instance of `Object` (including primitives and wrapper objects).
 
+Even though `typeof NaN === "number"`, Typecheck.js does *not* consider NaN to be an instance of `Number`. The reason for this is because NaN often indicates that a calculation has gone wrong, and the point of Typecheck.js is to catch errors early instead of allowing them to propagate to unrelated parts of the code. If you want to specify that a variable should be a number including NaN, you can use `Number | NaN` (`NaN` is a special type that checks for NaN, see below).
+
 ### Null, undefined and void types
-The special type `null` can be used to check that a variable is `null`. This is mostly useful in union types, so to check that a varaible is either an instance of `SomeClass` or is null, you can use `SomeClass | null`. Similarly, `undefined` checks that a variable is undefined.
+The special type `null` can be used to check that a variable is `null`. This is mostly useful in union types, so to check that a varaible is either an instance of `SomeClass` or is null, you can use `SomeClass | null`. Similarly, `undefined` checks that a variable is undefined, and `NaN` checks that a variable is NaN (i.e. `typeof obj === "number" && isNaN(obj)`).
 
 `void` also checks that the return value of a function is undefined, but unlike `undefined`, it can only be used as a return type, and can't be used in union types or generics. It's intended to be used to indicate that a function returns nothing. Since in JavaScript functions that return nothing return undefined, a return type of void `void` is functionally identical to a plain return type of `undefined`, but they are intended to have different meanings: `void` is indended to be used as the return type of functions that return nothing, and `undefined` is intended to be used for other uses of undefined.
 

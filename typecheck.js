@@ -1,5 +1,5 @@
 /*
-* Typecheck.js version 1.1.2 by Gustav Lindberg
+* Typecheck.js version 1.1.3 by Gustav Lindberg
 * https://github.com/GustavLindberg99/Typecheck.js
 */
 
@@ -185,6 +185,8 @@ class Type{
         case "undefined":
         case "void":
             return obj === undefined;
+        case "NaN":
+            return typeof(obj) === "number" && isNaN(obj);
         case "function":
             return obj instanceof Function && !obj.toString().startsWith("class");
         case "function*":
@@ -576,11 +578,17 @@ function typeName(obj /*: var */) /*: String */ {
     if(obj === null){
         return "null";
     }
+    else if(typeof(obj) === "number" && isNaN(obj)){
+        return "NaN";
+    }
     else if(obj instanceof Array || obj instanceof Set){
         let containedTypes = new Set();
         for(let item of obj){
             if(item === null){
                 containedTypes.add("null");
+            }
+            else if(typeof(item) === "number" && isNaN(item)){
+                containedTypes.add("NaN");
             }
             else{
                 containedTypes.add(String(item?.constructor.name));
@@ -597,11 +605,17 @@ function typeName(obj /*: var */) /*: String */ {
             if(keyValuePair[0] === null){
                 containedKeys.add("null");
             }
+            else if(typeof(keyValuePair[0]) === "number" && isNaN(keyValuePair[0])){
+                containedTypes.add("NaN");
+            }
             else{
                 containedKeys.add(String(keyValuePair[0]?.constructor.name));
             }
             if(keyValuePair[1] === null){
                 containedValues.add("null");
+            }
+            else if(typeof(keyValuePair[1]) === "number" && isNaN(keyValuePair[1])){
+                containedTypes.add("NaN");
             }
             else{
                 containedValues.add(String(keyValuePair[1]?.constructor.name));
@@ -809,7 +823,7 @@ typechecked.isinstance = function(obj /*: var */, type /*: String | class | null
             return false;
         }
         else if(type === Number){
-            return typeof(obj) === "number";
+            return typeof(obj) === "number" && !isNaN(obj);
         }
         else if(type === String){
             return typeof(obj) === "string";
