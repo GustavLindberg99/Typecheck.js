@@ -17,10 +17,11 @@ Typecheck.js is a JavaScript library that lets you type check function parameter
     - [Function types](#function-types)
     - [The `var` type](#the-var-type)
     - [Union types](#union-types)
-- [Containers and generics](#containers-and-generics)
+- [Containers, generics and tuples](#containers-generics-and-tuples)
     - [Array and set generics](#array-and-set-generics)
     - [Map generics](#map-generics)
     - [Rest parameters](#rest-parameters)
+    - [Tuples](#tuples)
 - [Special functions](#special-functions)
     - [Arrow functions](#arrow-functions)
     - [Async and generator functions](#async-and-generator-functions)
@@ -207,7 +208,7 @@ Sometimes you might want to check that a variable has one of several types. You 
 
 This is most often useful with `null`. To check that a varaible is either an instance of `SomeClass` or is null, you can use `SomeClass | null`.
 
-## Containers and generics
+## Containers, generics and tuples
 The built-in types `Array`, `Set` and `Map` can be used like any other classes in type declarations. However, often it's not enough to know that a variable is an array, set or map, you also want to know what it contains. For this reason, `Array`, `Set` and `Map` can also be used with generics.
 
 It is not possible to create your own generics in Typecheck.js, generics can only be used with the built-in types `Array`, `Set` and `Map`.
@@ -237,6 +238,34 @@ f();                //OK
 f(1);               //OK
 f(1, 2, 3);         //OK
 f("Hello World!");  //TypeError
+```
+
+### Tuples
+Sometimes you need arrays that have a specific number of elements with specific types. This is especially useful for return values, since JavaScript functions can only have one return value. For this you can use tuples, which have the syntax `[Type1, Type2, ...]`:
+
+```javascript
+function multipleReturnValues() /*: [String, Number, Boolean] */ {
+    return ["Hello World!", 4, true];
+}
+multipleReturnValues = typechecked(multipleReturnValues);
+
+const [myString, myNumber, myBoolean] = multipleReturnValues();
+```
+
+Tuples can also be useful in combination with rest parameters and union types to overload functions. For example, the following function has two overloads, one that takes two numbers and one that takes one string:
+
+```javascript
+function overloadedFunction(...args /*: [Number, Number] | [String] */){
+    if(typechecked.isinstance(args, "[Number, Number]")){
+        const [x, y] = args;
+        //Overload with two numbers
+    }
+    else{
+        const [myString] = args;
+        //Overload with one string
+    }
+}
+overloadedFunction = typechecked(overloadedFunction);
 ```
 
 ## Special functions
@@ -420,11 +449,11 @@ f = typechecked(f);
 f(new Outer.Inner());
 ```
 
-## The `typechecked.instanceof` function
-If you want to typecheck using Typecheck.js syntax elsewhere than in function paremeters and return types, you can use the `typechecked.instanceof` function, which has the following signature:
+## The `typechecked.isinstance` function
+If you want to typecheck using Typecheck.js syntax elsewhere than in function paremeters and return types, you can use the `typechecked.isinstance` function, which has the following signature:
 
 ```javascript
-function typechecked.instanceof(
+function typechecked.isinstance(
     obj /*: var */,
     type /*: String | class | null | undefined */
 ) /*: Boolean */

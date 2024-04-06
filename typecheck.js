@@ -1,5 +1,5 @@
 /*
-* Typecheck.js version 1.1.3 by Gustav Lindberg
+* Typecheck.js version 1.2.0 by Gustav Lindberg
 * https://github.com/GustavLindberg99/Typecheck.js
 */
 
@@ -16,168 +16,222 @@ const AsyncGeneratorFunction = (async function*(){}).constructor;
 //All the functions and classes defined in this file use typecheck.js's type declaration syntax for readability, but can't actually be typechecked since that would cause infinite recursion
 
 class Type{
-    name /*: String */;
-    splitUnionTypes /*: Array<Type> */ = [];
-    #genericTypes /*: Array<Type> */;
+    #name /*: String */;
+    #splitUnionTypes /*: Array<Type> */;
+    #rawType /*: String | null */;
+    #generics /*: Array<Type> | null */;
+    #tupleElements /*: Array<Type> | null */;
 
     constructor(name /*: String */){
         Object.seal(this);
 
-        this.name = name.trim();
+        this.#name = name.trim();
 
-        if(this.name === ""){
+        if(this.#name === ""){
             throw SyntaxError("Expected type name");
         }
 
-        let splitUnionTypeStrings = [""];
-        let genericTypeStrings = [""];
-        let genericDepth = 0;
-        let spaceAfterTypeName = false;
+        const invalidCharacter = this.#name.match(/[^a-zA-Z\u00aa-\uffdc0-9_$\.\s<>\[\],|*]/)?.[0];
+        if(invalidCharacter !== undefined){
+            throw SyntaxError(`Invalid character '${invalidCharacter} in type declaration '${this}`);
+        }
+        if(/(?<!function|async)\*/.test(this.#name)){
+            throw SyntaxError(`Unexpected token '*' in type declaration '${this}'`)
+        }
 
-        for(let i = 0; i < this.name.length; i++){
-            const nextTokenMatch = this.name.slice(i).match(/^.[a-z0-9_$]*/si);
-            const nextToken = nextTokenMatch[0];
-            if(/\s/.test(this.name[i])){
-                if(splitUnionTypeStrings.at(-1) !== ""){
-                    spaceAfterTypeName = true;
+        this.#splitUnionTypes = this.#getSplitUnionTypes();
+        this.#tupleElements = this.#getTupleElements();
+        this.#rawType = this.#getRawType();
+        this.#generics = this.#getGenerics();
+    }
+
+    toString() /*: String */ {
+        return this.#name;
+    }
+
+    #splitOutsideGenericsAndTuples(str /*: String */, delimiter /*: String */) /*: Array<String> */ {
+        const result = [""];
+        let genericDepth = 0;
+        let tupleDepth = 0;
+
+        for(let i = 0; i < str.length; i++){
+            switch(str[i]){
+            case "<":
+                genericDepth++;
+                break;
+            case ">":
+                genericDepth--;
+                if(genericDepth < 0){
+                    throw SyntaxError(`Unexpected token '>' in type declaration '${this}'`);
                 }
+                break;
+            case "[":
+                tupleDepth++;
+                break;
+            case "]":
+                tupleDepth--;
+                if(tupleDepth < 0){
+                    throw SyntaxError(`Unexpected token ']' in type declaration '${this}'`);
+                }
+                break;
+            case delimiter:
+                if(genericDepth === 0 && tupleDepth === 0){
+                    result.push("");
+                    continue;
+                }
+                break;
             }
-            else if(genericDepth > 0 || this.name[i] === "<" || this.name[i] === ">"){
-                if(this.name[i] === ">"){
-                    genericDepth--;
-                    if(genericDepth < 0){
-                        throw SyntaxError(`Unexpected token '>' in type declaration '${this}'`);
-                    }
-                    else if(genericDepth === 0 && !genericTypeStrings.some(it => it !== "")){
-                        throw SyntaxError(`Empty generic in type declaration '${this}'`);
-                    }
-                }
-                if(genericDepth > 0){
-                    if(this.name[i] === ","){
-                        genericTypeStrings.push("");
-                    }
-                    else{
-                        genericTypeStrings[genericTypeStrings.length - 1] += this.name[i];
-                    }
-                }
-                if(this.name[i] === "<"){
-                    if(splitUnionTypeStrings.at(-1) === ""){
-                        throw SyntaxError(`Expected type name before generic: '${this}'`);
-                    }
-                    if(genericDepth === 0 && genericTypeStrings.some(it => it !== "")){
-                        throw SyntaxError(`Unexpected token '<' in type declaration '${this}'`)
-                    }
-                    genericDepth++;
-                }
-            }
-            else if(this.name[i] === "|"){
-                if(splitUnionTypeStrings.at(-1) === ""){
-                    throw SyntaxError(`Unexpected token '|' in type declaration '${this}'`);
-                }
-                splitUnionTypeStrings.push("");
-                genericTypeStrings = [""];
-                spaceAfterTypeName = false;
-            }
-            else if(genericTypeStrings.some(it => it !== "")){
-                throw SyntaxError(`Unexpected token '${nextToken}' in type declaration '${this}'`);
-            }
-            else if(/[0-9]/.test(this.name[i])){
-                if(spaceAfterTypeName){
-                    throw SyntaxError(`Unexpected token '${nextToken}' in type declaration '${this}'`);
-                }
-                if(splitUnionTypeStrings.at(-1) === ""){
-                    throw SyntaxError(`Type names can't start with numbers, got '${this}'`);
-                }
-                splitUnionTypeStrings[splitUnionTypeStrings.length - 1] += this.name[i];
-            }
-            else if(/[a-z_$\.]/i.test(this.name[i])){
-                if(spaceAfterTypeName){
-                    throw SyntaxError(`Unexpected token '${nextToken}' in type declaration '${this}'`);
-                }
-                splitUnionTypeStrings[splitUnionTypeStrings.length - 1] += this.name[i];
-            }
-            else if(this.name[i] === "*"){
-                if(splitUnionTypeStrings.at(-1) === "function" || splitUnionTypeStrings.at(-1) === "async"){
-                    splitUnionTypeStrings[splitUnionTypeStrings.length - 1] += "*";
-                }
-                else{
-                    throw SyntaxError(`Unexpected token '*' in type declaration '${this}'`);
-                }
-            }
-            else{
-                throw SyntaxError(`Unexpected character '${this.name[i]}' in type declaration '${this}'`);
-            }
+            result[result.length - 1] += str[i];
         }
 
         if(genericDepth > 0){
             throw SyntaxError(`Unclosed generic in type declaration '${this}'`);
         }
-
-        if(splitUnionTypeStrings.length === 1){
-            this.splitUnionTypes = [this];
-
-            genericTypeStrings = genericTypeStrings.map(it => it.trim()).filter(it => it !== "");
-            if(genericTypeStrings.some(it => it === "void")){
-                throw SyntaxError("void can't be used in generics")
-            }
-            this.#genericTypes = genericTypeStrings.map(it => new Type(it));
-
-            if(this.rawType() === "Array" || this.rawType() === "Set"){
-                if(genericTypeStrings.length > 1){
-                    let errorMessage = `${this.rawType()} generics can only have one argument, got '${genericTypeStrings.join(", ")}'`;
-                    if(!genericTypeStrings.some(it => it.includes("|"))){
-                        errorMessage += `. Did you mean '${this.rawType()}<${genericTypeStrings.join(" | ")}>'?`;
-                    }
-                    throw TypeError(errorMessage);
-                }
-            }
-            else if(this.rawType() === "Map"){
-                if(genericTypeStrings.length !== 2 && genericTypeStrings.length !== 0){
-                    throw TypeError(`${this.rawType()} generics must have exactly two arguments, got '${genericTypeStrings.join(", ")}'`);
-                }
-            }
-            else if(genericTypeStrings.length > 0){
-                throw TypeError(`Generics are not supported on ${this.rawType()}`);
-            }
+        if(tupleDepth > 0){
+            throw SyntaxError(`Unclosed tuple in type declaration '${this}'`);
         }
-        else{
-            if(splitUnionTypeStrings.some(it => it === "void")){
-                throw SyntaxError("void can't be used in union types");
-            }
-            else if(splitUnionTypeStrings.some(it => it === "var")){
-                throw SyntaxError("var can't be used in union types");
-            }
-            this.splitUnionTypes = splitUnionTypeStrings.map(it => new Type(it));
-            this.#genericTypes = [];
+
+        return result;
+    }
+
+    #getSplitUnionTypes() /*: Array<Type> */ {
+        let genericDepth = 0;
+        let tupleDepth = 0;
+
+        const result = this.#splitOutsideGenericsAndTuples(this.#name, "|");
+
+        if(result[0] === ""){
+            throw SyntaxError(`Expected type name before '|' token in type declaration '${this}'`);
         }
-    }
-
-    toString() /*: String */ {
-        return this.name;
-    }
-
-    genericKey() /*: Type | null */ {
-        if(this.#genericTypes.length > 1){
-            return this.#genericTypes[0];
+        else if(result.at(-1) === ""){
+            throw SyntaxError(`Expected type name after '|' token in type declaration '${this}'`);
         }
-        return null;
+        else if(result.some(it => it === "")){
+            throw SyntaxError(`Unexpected token '|' in type declaration '${this}'`);
+        }
+
+        if(result.length === 1){
+            return this;
+        }
+        return result.map(it => new Type(it));
     }
 
-    genericValue() /*: Type | null */ {
-        return this.#genericTypes[1] ?? this.#genericTypes[0] ?? null;
-    }
-
-    rawType() /*: String | null */ {
-        if(this.splitUnionTypes.length > 1){
+    #getTupleElements() /*: Array<Type> | null */ {
+        if(this.#splitUnionTypes.length > 1){
             return null;
         }
-        return this.name.replace(/<.+$/s, "");
+        const match = this.#name.match(/^([^\[]*)\[(.*)\]([^\]]*)$/);
+        if(match === null){
+            return null;
+        }
+        else if(match[1] !== ""){
+            throw SyntaxError(`Garbage '${match[1]}' before tuple in type declaration '${this}' (for generics, use the syntax 'ContainerType<Type>')`);
+        }
+        else if(match[3] !== ""){
+            throw SyntaxError(`Unexpected token '${match[3]}' in type declaration '${this}'`);
+        }
+
+        const tupleContent = match[2];
+        const result = this.#splitOutsideGenericsAndTuples(tupleContent, ",");
+
+        if(result[0] === ""){
+            if(result.length === 1){
+                return [];
+            }
+            else{
+                throw SyntaxError(`Expected type name before ',' token in generic in type declaration '${this}'`);
+            }
+        }
+        else if(result.at(-1) === ""){
+            throw SyntaxError(`Expected type name after ',' token in generic in type declaration '${this}'`);
+        }
+        else if(result.some(it => it === "")){
+            throw SyntaxError(`Unexpected token ',' in type declaration '${this}'`);
+        }
+
+        return result.map(it => new Type(it));
+    }
+
+    #getRawType() /*: String | null */ {
+        if(this.#splitUnionTypes.length > 1){
+            return null;
+        }
+        if(this.#tupleElements !== null){
+            return "Array";
+        }
+        const result = this.#name.replace(/<.+$/s, "").trim();
+
+        const invalidCharacter = result.match(/[^a-zA-Z\u00aa-\uffdc0-9_$\.\s*]/)?.[0];
+        if(invalidCharacter !== undefined){
+            throw SyntaxError(`Invalid character '${invalidCharacter} in type declaration '${this}`);
+        }
+
+        if(result === ""){
+            throw SyntaxError(`Missing type name before generic in type declaration '${this}'`);
+        }
+        else if(/\s/.test(result)){
+            throw SyntaxError(`Unexpected token '${result.split(/\s+/)[1]}' in type declaration '${this}'`);
+        }
+        else if(/^[0-9]/.test(result)){
+            throw SyntaxError(`Type names can't start with numbers, got '${result}'`);
+        }
+        return result;
+    }
+
+    #getGenerics() /*: Array<Type> | null */ {
+        if(this.#splitUnionTypes.length > 1){
+            return null;
+        }
+        const match = this.#name.match(/^[^<]+<(.*)>([^>]*)$/);
+        if(match === null){
+            return null;
+        }
+        const genericContent = match[1];
+        if(match[2] !== ""){
+            throw SyntaxError(`Unexpected token '${match[2]}' in type declaration '${this}'`);
+        }
+        else if(genericContent === ""){
+            throw SyntaxError(`Empty generic in type declaration '${this}'`);
+        }
+
+        const result = this.#splitOutsideGenericsAndTuples(genericContent, ",");
+
+        if(result[0] === ""){
+            throw SyntaxError(`Expected type name before ',' token in generic in type declaration '${this}'`);
+        }
+        else if(result.at(-1) === ""){
+            throw SyntaxError(`Expected type name after ',' token in generic in type declaration '${this}'`);
+        }
+        else if(result.some(it => it === "")){
+            throw SyntaxError(`Unexpected token ',' in type declaration '${this}'`);
+        }
+
+        const typesThatSupportGenerics = ["Array", "Set", "Map"];
+        if(!typesThatSupportGenerics.includes(this.#rawType)){
+            throw TypeError(`Generics are only supported on ${typesThatSupportGenerics}, not on '${this.#rawType}'`);
+        }
+        switch(result.length){
+        case 1:
+            if(this.#rawType === "Map"){
+                throw TypeError(`Too few arguments for ${this.#rawType} generic in type declaration '${this}'`);
+            }
+            break;
+        case 2:
+            if(this.#rawType === "Map"){
+                break;
+            }
+            //No break
+        default:
+            throw TypeError(`Too many arguments for ${this.#rawType} generic in type declaration '${this}'`);
+        }
+
+        return result.map(it => new Type(it));
     }
 
     isinstance(obj /*: var */) /*: Boolean */ {
-        switch(this.rawType()){
+        switch(this.#rawType){
         case null:    //Union types, there is no single raw type
-            return this.splitUnionTypes.some(it => it.isinstance(obj));
+            return this.#splitUnionTypes.some(it => it.isinstance(obj));
         case "var":
             return true;
         case "null":
@@ -198,30 +252,33 @@ class Type{
         case "class":
             return obj instanceof Function && obj.hasOwnProperty("prototype") && !(obj instanceof GeneratorFunction || obj instanceof AsyncGeneratorFunction);
         default:
-            const rawType = this.rawType().split(".");
+            const rawType = this.#rawType.split(".");
             let type = (globalThis[rawType[0]] ?? savedClasses[rawType[0]]);
             for(let subtype of rawType.slice(1)){
                 type = type[subtype];
             }
             if(type === undefined){
-                throw ReferenceError(`'${this.rawType()}' in type declaration is not defined`);
+                throw ReferenceError(`'${this.#rawType}' in type declaration is not defined`);
             }
             else if(!classType.isinstance(type)){
-                throw TypeError(`'${this.rawType()}' in type declaration does not name a type`);
+                throw TypeError(`'${this.#rawType}' in type declaration does not name a type`);
             }
             if(!typechecked.isinstance(obj, type)){
                 return false;
             }
-            if(this.genericKey() !== null){
+            if(this.#tupleElements !== null){
+                return obj.length === this.#tupleElements.length && this.#tupleElements.every((it, i) => it.isinstance(obj[i]));
+            }
+            else if(this.#generics?.length === 2){
                 for(let keyValuePair of obj){
-                    if(!this.genericKey().isinstance(keyValuePair[0]) || !this.genericValue().isinstance(keyValuePair[1])){
+                    if(!this.#generics[0].isinstance(keyValuePair[0]) || !this.#generics[1].isinstance(keyValuePair[1])){
                         return false;
                     }
                 }
             }
-            else if(this.genericValue() !== null){
+            else if(this.#generics?.length === 1){
                 for(let item of obj){
-                    if(!this.genericValue().isinstance(item)){
+                    if(!this.#generics[0].isinstance(item)){
                         return false;
                     }
                 }
@@ -300,211 +357,206 @@ class TypedFunction{
             offset++;
         }
 
-        try{
-            //Skip initial comments, function keyword, name, etc
-            let lastIdentifier = "";    //Used in case it's an arrow function with no parentheses
-            let computedNameDepth = 0;
-            while(computedNameDepth > 0 || /^\s*([a-z_$]|(\/[\/\*]|\[))/i.test(functionString.slice(offset))){
-                if(functionString.slice(offset).trim()[0] === "["){
+        //Skip initial comments, function keyword, name, etc
+        let lastIdentifier = "";    //Used in case it's an arrow function with no parentheses
+        let computedNameDepth = 0;
+        while(computedNameDepth > 0 || /^\s*([a-z_$]|(\/[\/\*]|\[))/i.test(functionString.slice(offset))){
+            if(functionString.slice(offset).trim()[0] === "["){
+                computedNameDepth++;
+                offset++;
+            }
+            else if(computedNameDepth > 0){
+                skipString();
+                switch(functionString[offset]){
+                case "[":
                     computedNameDepth++;
-                    offset++;
+                    break;
+                case "]":
+                    computedNameDepth--;
+                    break;
                 }
-                else if(computedNameDepth > 0){
-                    skipString();
-                    switch(functionString[offset]){
-                    case "[":
-                        computedNameDepth++;
-                        break;
-                    case "]":
-                        computedNameDepth--;
-                        break;
-                    }
-                    offset++;
-                }
-                else{
-                    offset += functionString.slice(offset).search(/\S/);
-                    if(/^[a-z_$]/i.test(functionString.slice(offset))){
-                        const oldOffset = offset;
-                        offset += functionString.slice(offset).search(/[^a-z0-9_$\*]/i);    //Include * in case it's the function* keyword for generators
-                        lastIdentifier = functionString.slice(oldOffset, offset);
-                    }
-                }
-                skipComments();
-            }
-            offset += functionString.slice(offset).search(/\S/);
-            if(functionString[offset] === "("){
-                //Beginning of parameter list
-                offset++;    //We're not interested in the initial (, we're interested in what comes after it
-            }
-            else if(functionString.substr(offset, 2) === "=>"){
-                //If it's an arrow function without parentheses around the parameter, just check the number of parameters
-                this.parameters = [new Parameter(lastIdentifier)];
-                this.isArrowFunction = true;
-                return;
+                offset++;
             }
             else{
-                //This shouldn't happen, but if it does just throw an error so that we don't get stuck in an infinite loop later
-                throw SyntaxError(`Unexpected character '${functionString[offset]}' when parsing type declaration`);
+                offset += functionString.slice(offset).search(/\S/);
+                if(/^[a-z_$]/i.test(functionString.slice(offset))){
+                    const oldOffset = offset;
+                    offset += functionString.slice(offset).search(/[^a-z0-9_$\*]/i);    //Include * in case it's the function* keyword for generators
+                    lastIdentifier = functionString.slice(oldOffset, offset);
+                }
             }
+            skipComments();
+        }
+        offset += functionString.slice(offset).search(/\S/);
+        if(functionString[offset] === "("){
+            //Beginning of parameter list
+            offset++;    //We're not interested in the initial (, we're interested in what comes after it
+        }
+        else if(functionString.substr(offset, 2) === "=>"){
+            //If it's an arrow function without parentheses around the parameter, just check the number of parameters
+            this.parameters = [new Parameter(lastIdentifier)];
+            this.isArrowFunction = true;
+            return;
+        }
+        else{
+            //This shouldn't happen, but if it does just throw an error so that we don't get stuck in an infinite loop later
+            throw SyntaxError(`Error when parsing typechecked function ${this.name}: Unexpected character '${functionString[offset]}' when parsing type declaration`);
+        }
 
-            //Find the parameter types
-            while(atEndOfDestructuredParams || !/^\s*\)/.test(functionString.slice(offset))){
-                skipComments(!atEndOfDestructuredParams);
+        //Find the parameter types
+        while(atEndOfDestructuredParams || !/^\s*\)/.test(functionString.slice(offset))){
+            skipComments(!atEndOfDestructuredParams);
 
-                let parameterName;
-                let isRestParameter = false;
-                if(atEndOfDestructuredParams){
-                    const joinedName = currentParent.children.map(it => it.name).join(", ");
-                    if(currentParent.destructuredType === Array){
-                        currentParent.name = `[${joinedName}]`;
-                    }
-                    else{
-                        currentParent.name = `{${joinedName}}`;
-                    }
+            let parameterName;
+            let isRestParameter = false;
+            if(atEndOfDestructuredParams){
+                const joinedName = currentParent.children.map(it => it.name).join(", ");
+                if(currentParent.destructuredType === Array){
+                    currentParent.name = `[${joinedName}]`;
                 }
                 else{
-                    //Check for destructured parameters
-                    let openingDestructuringMatch;
-                    while(openingDestructuringMatch = functionString.slice(offset).match(/^\s*(\.\.\.)?\s*([\[\{])/)){    //This isn't a mistake, it should be =, not ===
-                        currentParent = new Parameter("", currentParent);
-                        offset += openingDestructuringMatch[0].length;
-                        switch(openingDestructuringMatch[2]){
-                        case "[":
-                            currentParent.destructuredType = Array;
-                            break;
-                        case "{":
-                            currentParent.destructuredType = Object;
-                            break;
-                        }
-                        if(openingDestructuringMatch[1] !== undefined){
-                            currentParent.isRestParameter = true;
-                        }
-                        skipComments();
-                    }
-
-                    //Find the parameter name
-                    const paramMatch = functionString.slice(offset).match(/^\s*(\.\.\.)?\s*([a-z_$][a-z0-9_$]*)/i);
-                    if(paramMatch[2] !== "" && parameterNames.includes(paramMatch[2])){
-                        throw SyntaxError(`Duplicate parameter name '${paramMatch[2]}' in typechecked function`);
-                    }
-                    parameterName = paramMatch[2];
-                    offset += paramMatch[0].length;
-
-                    //If there are top-level rest parameters, there is no max number of parameters
-                    if(paramMatch[1] !== undefined){
-                        isRestParameter = true;
-                    }
+                    currentParent.name = `{${joinedName}}`;
                 }
-
-                skipComments(false);
-
-                //Find the type declaration
-                const typeMatch = functionString.slice(offset).match(typeDeclarationRegex);
-                const parameter = atEndOfDestructuredParams ? currentParent : new Parameter(parameterName, currentParent);
-                parameter.isRestParameter ||= isRestParameter;
-                if(typeMatch !== null){
-                    if(typeMatch[1].trim() === "void"){
-                        throw SyntaxError("void can only be used as a return type");
+            }
+            else{
+                //Check for destructured parameters
+                let openingDestructuringMatch;
+                while(openingDestructuringMatch = functionString.slice(offset).match(/^\s*(\.\.\.)?\s*([\[\{])/)){    //This isn't a mistake, it should be =, not ===
+                    currentParent = new Parameter("", currentParent);
+                    offset += openingDestructuringMatch[0].length;
+                    switch(openingDestructuringMatch[2]){
+                    case "[":
+                        currentParent.destructuredType = Array;
+                        break;
+                    case "{":
+                        currentParent.destructuredType = Object;
+                        break;
                     }
-                    parameter.type = new Type(typeMatch[1]);
-                }
-                if(atEndOfDestructuredParams){
-                    currentParent = currentParent.parent;
-                }
-
-                skipComments(true, false);
-
-                //Check if there are optional parameters, and if there are, skip them
-                parameter.isOptional = /^\s*=/.test(functionString.slice(offset));
-                if(parameter.isOptional){
-                    let arrayDepth = 0;
-                    let objectDepth = 0;
-                    let parenthesesDepth = 0;
-                    offset = functionString.indexOf("=", offset);
+                    if(openingDestructuringMatch[1] !== undefined){
+                        currentParent.isRestParameter = true;
+                    }
                     skipComments();
-                    while(arrayDepth > 0 || objectDepth > 0 || parenthesesDepth > 0 || !/^\s*[,)]/.test(functionString.slice(offset))){
-                        switch(functionString[offset]){
-                        case '"':
-                        case "'":
-                        case "`":
-                            skipString();
-                            offset--;    //To cancel out for the offset++ below
-                            break;
-                        case "[":
-                            arrayDepth++;
-                            break;
-                        case "]":
-                            arrayDepth--;
-                            break;
-                        case "{":
-                            objectDepth++;
-                            break;
-                        case "}":
-                            objectDepth--;
-                            break;
-                        case "(":
-                            parenthesesDepth++;
-                            break;
-                        case ")":
-                            parenthesesDepth--;
-                            break;
-                        }
-                        if(arrayDepth < 0 || objectDepth < 0){
-                            //It's possible to get a ] without a [ (and the same for {}) if it's a destructured parameter.
-                            //If that's the case, we've reached the end of the optional parameter, so exit the loop.
-                            break;
-                        }
-                        offset++;
-                        skipComments();
-
-                        //Check for end of file to avoid getting stuck in an infinite loop
-                        if(offset >= functionString.length){
-                            throw SyntaxError("Unexpected end of file when typechecking function");
-                        }
-                    }
-                }
-                else if(currentParent?.destructuredType !== Object){
-                    if((currentParent?.children ?? this.parameters).some(it => it.isOptional)){
-                        throw SyntaxError(`Parameter '${parameter.name}' is non-optional but is placed after an optional parameter`);
-                    }
                 }
 
-                //Add to the parameter list
-                if(currentParent === null){
-                    this.parameters.push(parameter);
+                //Find the parameter name
+                const paramMatch = functionString.slice(offset).match(/^\s*(\.\.\.)?\s*([a-z_$][a-z0-9_$]*)/i);
+                if(paramMatch[2] !== "" && parameterNames.includes(paramMatch[2])){
+                    throw SyntaxError(`Error when parsing typechecked function ${this.name}: Duplicate parameter name '${paramMatch[2]}' in typechecked function`);
                 }
-                else{
-                    currentParent.children.push(parameter);
-                }
+                parameterName = paramMatch[2];
+                offset += paramMatch[0].length;
 
-                //Skip the comma that separates parameters and the ] or } that closes destructured arrays or objects
-                const closingMatch = functionString.slice(offset).match(/^\s*([\]\},])/);
-                if(closingMatch !== null){
-                    atEndOfDestructuredParams = closingMatch[1] !== ",";
-                    offset += closingMatch[0].length;
-                }
-                else{
-                    atEndOfDestructuredParams = false;
-                }
-
-                //Check for end of file to avoid getting stuck in an infinite loop
-                if(offset >= functionString.length){
-                    throw SyntaxError("Unexpected end of file when typechecking function");
+                //If there are top-level rest parameters, there is no max number of parameters
+                if(paramMatch[1] !== undefined){
+                    isRestParameter = true;
                 }
             }
 
-            //Find the return types
-            offset = functionString.indexOf(")", offset) + 1;
             skipComments(false);
-            const returnTypeMatch = functionString.slice(offset).match(typeDeclarationRegex);
-            if(returnTypeMatch !== null){
-                this.returnType = new Type(returnTypeMatch[1]);
+
+            //Find the type declaration
+            const typeMatch = functionString.slice(offset).match(typeDeclarationRegex);
+            const parameter = atEndOfDestructuredParams ? currentParent : new Parameter(parameterName, currentParent);
+            parameter.isRestParameter ||= isRestParameter;
+            if(typeMatch !== null){
+                if(typeMatch[1].trim() === "void"){
+                    throw SyntaxError(`Error when parsing typechecked function ${this.name}: void can only be used as a return type`);
+                }
+                parameter.type = new Type(typeMatch[1]);
             }
+            if(atEndOfDestructuredParams){
+                currentParent = currentParent.parent;
+            }
+
             skipComments(true, false);
+
+            //Check if there are optional parameters, and if there are, skip them
+            parameter.isOptional = /^\s*=/.test(functionString.slice(offset));
+            if(parameter.isOptional){
+                let arrayDepth = 0;
+                let objectDepth = 0;
+                let parenthesesDepth = 0;
+                offset = functionString.indexOf("=", offset);
+                skipComments();
+                while(arrayDepth > 0 || objectDepth > 0 || parenthesesDepth > 0 || !/^\s*[,)]/.test(functionString.slice(offset))){
+                    switch(functionString[offset]){
+                    case '"':
+                    case "'":
+                    case "`":
+                        skipString();
+                        offset--;    //To cancel out for the offset++ below
+                        break;
+                    case "[":
+                        arrayDepth++;
+                        break;
+                    case "]":
+                        arrayDepth--;
+                        break;
+                    case "{":
+                        objectDepth++;
+                        break;
+                    case "}":
+                        objectDepth--;
+                        break;
+                    case "(":
+                        parenthesesDepth++;
+                        break;
+                    case ")":
+                        parenthesesDepth--;
+                        break;
+                    }
+                    if(arrayDepth < 0 || objectDepth < 0){
+                        //It's possible to get a ] without a [ (and the same for {}) if it's a destructured parameter.
+                        //If that's the case, we've reached the end of the optional parameter, so exit the loop.
+                        break;
+                    }
+                    offset++;
+                    skipComments();
+
+                    //Check for end of file to avoid getting stuck in an infinite loop
+                    if(offset >= functionString.length){
+                        throw SyntaxError(`Error when parsing typechecked function ${this.name}: Unexpected end of file when typechecking function`);
+                    }
+                }
+            }
+            else if(currentParent?.destructuredType !== Object){
+                if((currentParent?.children ?? this.parameters).some(it => it.isOptional)){
+                    throw SyntaxError(`Error when parsing typechecked function ${this.name}: Parameter '${parameter.name}' is non-optional but is placed after an optional parameter`);
+                }
+            }
+
+            //Add to the parameter list
+            if(currentParent === null){
+                this.parameters.push(parameter);
+            }
+            else{
+                currentParent.children.push(parameter);
+            }
+
+            //Skip the comma that separates parameters and the ] or } that closes destructured arrays or objects
+            const closingMatch = functionString.slice(offset).match(/^\s*([\]\},])/);
+            if(closingMatch !== null){
+                atEndOfDestructuredParams = closingMatch[1] !== ",";
+                offset += closingMatch[0].length;
+            }
+            else{
+                atEndOfDestructuredParams = false;
+            }
+
+            //Check for end of file to avoid getting stuck in an infinite loop
+            if(offset >= functionString.length){
+                throw SyntaxError(`Error when parsing typechecked function ${this.name}: Unexpected end of file when typechecking function`);
+            }
         }
-        catch(e){
-            throw e.constructor(`Error when parsing typechecked function ${this.name}: ${e.message}`);
+
+        //Find the return types
+        offset = functionString.indexOf(")", offset) + 1;
+        skipComments(false);
+        const returnTypeMatch = functionString.slice(offset).match(typeDeclarationRegex);
+        if(returnTypeMatch !== null){
+            this.returnType = new Type(returnTypeMatch[1]);
         }
+        skipComments(true, false);
 
         //Find if it's an arrow function
         this.isArrowFunction = /^\s*=>/.test(functionString.slice(offset));
