@@ -1,5 +1,5 @@
 /*
-* Typecheck.js version 1.2.0 by Gustav Lindberg
+* Typecheck.js version 1.2.1 by Gustav Lindberg
 * https://github.com/GustavLindberg99/Typecheck.js
 */
 
@@ -125,7 +125,14 @@ class Type{
             return null;
         }
         else if(match[1] !== ""){
-            throw SyntaxError(`Garbage '${match[1]}' before tuple in type declaration '${this}' (for generics, use the syntax 'ContainerType<Type>')`);
+            //If the part before the tuple ends with a < character, the tuple is a generic argument, so then the type itself isn't a tuple
+            if(match[1].trim().endsWith("<")){
+                return null;
+            }
+            //Otherwise it's a syntax error
+            else{
+                throw SyntaxError(`Garbage '${match[1]}' before tuple in type declaration '${this}' (for generics, use the syntax 'ContainerType<Type>')`);
+            }
         }
         else if(match[3] !== ""){
             throw SyntaxError(`Unexpected token '${match[3]}' in type declaration '${this}'`);
@@ -179,7 +186,7 @@ class Type{
     }
 
     #getGenerics() /*: Array<Type> | null */ {
-        if(this.#splitUnionTypes.length > 1){
+        if(this.#splitUnionTypes.length > 1 || this.#tupleElements !== null){
             return null;
         }
         const match = this.#name.match(/^[^<]+<(.*)>([^>]*)$/);
