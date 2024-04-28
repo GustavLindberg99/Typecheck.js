@@ -1,5 +1,5 @@
 /*
-* Typecheck.js version 1.2.2 by Gustav Lindberg
+* Typecheck.js version 1.2.3 by Gustav Lindberg
 * https://github.com/GustavLindberg99/Typecheck.js
 */
 
@@ -262,7 +262,7 @@ class Type{
             const rawType = this.#rawType.split(".");
             let type = (globalThis[rawType[0]] ?? savedClasses[rawType[0]]);
             for(let subtype of rawType.slice(1)){
-                type = type[subtype];
+                type = type?.[subtype];
             }
             if(type === undefined){
                 throw ReferenceError(`'${this.#rawType}' in type declaration is not defined`);
