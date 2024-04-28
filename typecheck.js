@@ -1,5 +1,5 @@
 /*
-* Typecheck.js version 1.2.1 by Gustav Lindberg
+* Typecheck.js version 1.2.2 by Gustav Lindberg
 * https://github.com/GustavLindberg99/Typecheck.js
 */
 
@@ -918,7 +918,7 @@ typechecked.add = typechecked(function(...classes /*: Array<class> */) /*: void 
         if(name in savedClasses || name in globalThis){
             if(savedClasses[name] === cls){
                 //Don't do anything, calling typechecked.add twice should be allowed so that it can be called after import in each file
-                return;
+                continue;
             }
             else if(cls.prototype instanceof savedClasses[name]){
                 throw ReferenceError(`Cannot call typechecked.add on class '${name}': class is already known by typechecked. You don't need to call typechecked.add on classes that are themselves typechecked.`);
