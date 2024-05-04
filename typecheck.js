@@ -1,17 +1,64 @@
 /*
-* Typecheck.js version 1.2.4 by Gustav Lindberg
+* Typecheck.js version 1.2.5 by Gustav Lindberg
 * https://github.com/GustavLindberg99/Typecheck.js
 */
 
 "use strict";
 
-const typechecked = (function(){
+const typechecked = (function(getTypeFromGlobalScope){
     let savedClasses = {};
 
     //Define these to be able to check if a function is an async function or a generator function
     const AsyncFunction = (async function(){}).constructor;
     const GeneratorFunction = (function*(){}).constructor;
     const AsyncGeneratorFunction = (async function*(){}).constructor;
+
+    //Keywords that aren't allowed to be used as type names
+    const reservedKeywords = [
+        "arguments",
+        //Not async since it's a special type
+        "await",
+        "break",
+        "case",
+        "catch",
+        //Not class since it's a special type
+        "const",
+        "continue",
+        "debugger",
+        "default",
+        "delete",
+        "do",
+        "else",
+        "eval",
+        "export",
+        "extends",
+        "false",
+        "finally",
+        "for",
+        //Not function since it's a special type
+        "if",
+        "import",
+        "in",
+        "instanceof",
+        "let",
+        "new",
+        //Not null since it's a special type
+        "return",
+        "static",
+        "super",
+        "switch",
+        "this",
+        "throw",
+        "true",
+        "try",
+        "typeof",
+        //Not undefined since it's a special type
+        //Not var since it's a special type
+        //Not void since it's a special type
+        "while",
+        "with",
+        "yield"
+    ];
 
     //All the functions and classes defined in this file use typecheck.js's type declaration syntax for readability, but can't actually be typechecked since that would cause infinite recursion
 
@@ -43,6 +90,11 @@ const typechecked = (function(){
             this.#tupleElements = this.#getTupleElements();
             this.#rawType = this.#getRawType();
             this.#generics = this.#getGenerics();
+
+            const illegalKeyword = this.#rawType?.split(".").find(it => reservedKeywords.includes(it));
+            if(illegalKeyword !== undefined){
+                throw new SyntaxError(`Unexpected reserved keyword '${illegalKeyword}' in type declaration ${this}`)
+            }
         }
 
         toString() /*: String */ {
@@ -260,7 +312,7 @@ const typechecked = (function(){
                 return obj instanceof Function && obj.hasOwnProperty("prototype") && !(obj instanceof GeneratorFunction || obj instanceof AsyncGeneratorFunction);
             default:
                 const rawType = this.#rawType.split(".");
-                let type = (globalThis[rawType[0]] ?? savedClasses[rawType[0]]);
+                let type = getTypeFromGlobalScope(rawType[0]) ?? savedClasses[rawType[0]];
                 for(let subtype of rawType.slice(1)){
                     type = type?.[subtype];
                 }
@@ -711,7 +763,7 @@ const typechecked = (function(){
         case "class":
             //Same class names so that this is useable with modules
             if(name !== "" && !name.includes(".")){
-                if(name in savedClasses || name in globalThis){
+                if(name in savedClasses || getTypeFromGlobalScope(name) !== undefined){
                     throw new ReferenceError(`Redefinition of class ${readableName} (typecheck.js doesn't support multiple typechecked classes with the same name, not even in different modules)`);
                 }
                 savedClasses[name] = undecorated;
@@ -915,15 +967,15 @@ const typechecked = (function(){
             }
 
             const name = cls.name;
-            if(name in savedClasses || name in globalThis){
+            if(name in savedClasses || getTypeFromGlobalScope(name) !== undefined){
                 if(savedClasses[name] === cls){
                     //Don't do anything, calling typechecked.add twice should be allowed so that it can be called after import in each file
                     continue;
                 }
-                else if(cls.prototype instanceof savedClasses[name]){
+                else if(classType.isinstance(savedClasses[name]) && cls.prototype instanceof savedClasses[name]){
                     throw new ReferenceError(`Cannot call typechecked.add on class '${name}': class is already known by typechecked. You don't need to call typechecked.add on classes that are themselves typechecked.`);
                 }
-                else if(globalThis[name] === cls){
+                else if(getTypeFromGlobalScope(name) === cls){
                     throw new ReferenceError(`Cannot call typechecked.add on class '${name}': class is already known by typechecked. You don't need to call typechecked.add on classes that are members of globalThis.`);
                 }
                 else{
@@ -936,7 +988,15 @@ const typechecked = (function(){
     }, {name: "typechecked.add"});
 
     return Object.freeze(typechecked);
-})();
+})(function(){
+    //Pass the getTypeFromGlobalScope function as a parameter to the IIFE so that the evals in here can't see any of the private stuff, not even the getTypeFromGlobalScope function itself.
+    //For the same reason, use arguments instead of a named parameter.
+    //This is important in case a user creates a user-defined class with the same name as a local variable of the IIFE.
+    if(eval(`typeof ${arguments[0]}`) === "undefined"){
+        return undefined;
+    }
+    return eval(arguments[0]);
+});
 
 //Export typechecked in Node.js (no risk for false positives because in Node.js global variables defined in other files aren't visible here)
 if(typeof(window) === "undefined"){
