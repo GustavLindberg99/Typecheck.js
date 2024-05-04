@@ -1,5 +1,5 @@
 /*
-* Typecheck.js version 1.2.5 by Gustav Lindberg
+* Typecheck.js version 1.2.6 by Gustav Lindberg
 * https://github.com/GustavLindberg99/Typecheck.js
 */
 
@@ -312,7 +312,7 @@ const typechecked = (function(getTypeFromGlobalScope){
                 return obj instanceof Function && obj.hasOwnProperty("prototype") && !(obj instanceof GeneratorFunction || obj instanceof AsyncGeneratorFunction);
             default:
                 const rawType = this.#rawType.split(".");
-                let type = getTypeFromGlobalScope(rawType[0]) ?? savedClasses[rawType[0]];
+                let type = savedClasses[rawType[0]] ?? getTypeFromGlobalScope(rawType[0]);
                 for(let subtype of rawType.slice(1)){
                     type = type?.[subtype];
                 }
@@ -992,6 +992,13 @@ const typechecked = (function(getTypeFromGlobalScope){
     //Pass the getTypeFromGlobalScope function as a parameter to the IIFE so that the evals in here can't see any of the private stuff, not even the getTypeFromGlobalScope function itself.
     //For the same reason, use arguments instead of a named parameter.
     //This is important in case a user creates a user-defined class with the same name as a local variable of the IIFE.
+
+    //For performance reasons, try globalThis[arguments[0]] first. This works fine for built-in types and is much faster than eval.
+    if(globalThis[arguments[0]] !== undefined){
+        return globalThis[arguments[0]];
+    }
+
+    //If it couldn't be found, try using eval because ES6 classes aren't automatically added to globalThis for some reason.
     if(eval(`typeof ${arguments[0]}`) === "undefined"){
         return undefined;
     }
