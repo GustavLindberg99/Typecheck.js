@@ -1,7 +1,7 @@
 #!/bin/sh
 if which uglifyjs > /dev/null; then
     mkdir min 2> /dev/null
-    uglifyjs --mangle --comments '/export default typechecked|Array<class>/' typecheck.js -o min/typecheck-v1.min.js
+    uglifyjs --mangle --mangle-props --comments '/export default typechecked|Array<class>/' typecheck.js -o min/typecheck-v1.min.js
     git add min/typecheck-v1.min.js
 else
     echo "Cannot minify file: uglifyjs is not installed. To install it, run the following commands:"
