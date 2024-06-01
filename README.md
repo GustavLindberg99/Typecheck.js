@@ -30,7 +30,7 @@ Typecheck.js is a JavaScript library that lets you type check function parameter
     - [The `typechecked.add` function](#the-typecheckedadd-function)
     - [Local classes](#local-classes)
     - [Nested classes](#nested-classes)
-- [The `typechecked.instanceof` function](#the-typecheckedinstanceof-function)
+- [The `typechecked.isinstance` function](#the-typecheckedisinstance-function)
 
 ## Setup
 ### Browser-based JavaScript
@@ -174,9 +174,9 @@ square(4);              //OK
 square(new Number(4));  //TypeError
 ```
 
-Other built-in types (such as `RegExp`, `Date`, `XMLHttpRequest`, etc) simply check if it's an instance of that class using `instanceof`. Built-in container types (`Array`, `Set`, `Map`) can also be used as usual, but also have the possibility to be used as generics, see the Generics section below.
+Other built-in types (such as `RegExp`, `Date`, `XMLHttpRequest`, etc) simply check if it's an instance of that class using `isinstance`. Built-in container types (`Array`, `Set`, `Map`) can also be used as usual, but also have the possibility to be used as generics, see the Generics section below.
 
-Since the typechecking uses `instanceof`, instances of a derived class are also considered to be instances of a base class. For example, an `HTMLBodyElement` object is considered to also be an `HTMLElement` object, and if you have `class Base{}` and `class Derived extends Base{}`, a `Derived` object is also considered to be a `Base` object. Also, this means that everything except null or undefined is considered to be an instance of `Object` (including primitives and wrapper objects).
+Since the typechecking uses `isinstance`, instances of a derived class are also considered to be instances of a base class. For example, an `HTMLBodyElement` object is considered to also be an `HTMLElement` object, and if you have `class Base{}` and `class Derived extends Base{}`, a `Derived` object is also considered to be a `Base` object. Also, this means that everything except null or undefined is considered to be an instance of `Object` (including primitives and wrapper objects).
 
 Even though `typeof NaN === "number"`, Typecheck.js does *not* consider NaN to be an instance of `Number`. The reason for this is because NaN often indicates that a calculation has gone wrong, and the point of Typecheck.js is to catch errors early instead of allowing them to propagate to unrelated parts of the code. If you want to specify that a variable should be a number including NaN, you can use `Number | NaN` (`NaN` is a special type that checks for NaN, see below).
 
@@ -455,7 +455,7 @@ If you want to typecheck using Typecheck.js syntax elsewhere than in function pa
 ```javascript
 function typechecked.isinstance(
     obj /*: var */,
-    type /*: String | class | null | undefined */
+    type /*: String | class | null | undefined | NaN */
 ) /*: Boolean */
 ```
 
@@ -463,6 +463,7 @@ This function has the following behavior depending on the type of `type`:
 - If `type` is a string, parses it as a Typecheck.js type, then returns true if `obj` is an instance of that type and false otherwise. Throws an error if the parsing failed.
 - If `type` is null, returns true if `obj === null` and false otherwise.
 - If `type` is undefined, returns true if `obj === undefined` and false otherwise.
+- If `type` is NaN, returns true if `obj` is NaN and false otherwise.
 - If `type` is `Number`, `String`, `Boolean`, `Symbol` or `BigInt`, returns true if `typeof obj` is `number`, `string`, `boolean`, `symbol` or `bigint` respecitvely, and false otherwise.
 - If `type` is `Object`, returns true if `obj !== null` and `obj !== undefined`, and false otherwise.
-- If `type` is any other class, returns the result of `obj instanceof type`.
+- If `type` is any other class, returns the result of `obj isinstance type`.

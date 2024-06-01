@@ -922,12 +922,15 @@ const typechecked = (function(getTypeFromGlobalScope){
         }
     }
 
-    typechecked.isinstance = function(obj /*: var */, type /*: String | class | null | undefined */) /*: Boolean */ {
+    typechecked.isinstance = function(obj /*: var */, type /*: String | class | null | undefined | NaN */) /*: Boolean */ {
         if(type === null){
             return obj === null;
         }
         else if(type === undefined){
             return obj === undefined;
+        }
+        else if(Object.is(type, NaN)){
+            return Object.is(obj, NaN);
         }
         else if(classType.isinstance(type)){
             if(obj === null || obj === undefined){    //Don't use == to avoid issues with document.all
@@ -956,7 +959,7 @@ const typechecked = (function(getTypeFromGlobalScope){
             return new Type(type).isinstance(obj);
         }
         else{
-            throw new TypeError(`Expected parameter 'type' of function 'typechecked.isinstance' to be of type 'String | class | null | undefined', got '${typeName(type)}'`);
+            throw new TypeError(`Expected parameter 'type' of function 'typechecked.isinstance' to be of type 'String | class | null | undefined | NaN', got '${typeName(type)}'`);
         }
     };
 
